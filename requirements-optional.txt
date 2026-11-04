@@ -1,0 +1,7 @@
+# Optional: a real Chrome TLS fingerprint as the last resort when a CDN answers 403 to Python's handshake whatever
+# the headers are. Not in requirements.txt because it has no wheel on Termux. Install: pip install -r requirements-optional.txt
+curl_cffi
+
+# Optional, for embed pages protected by a bot check or built entirely in JavaScript (BROWSER_FALLBACK=1):
+#   pip install playwright && playwright install chromium
+playwright

@@ -1,0 +1,10 @@
+pyrogram
+tgcrypto
+aiohttp
+python-dotenv
+httpx
+yt-dlp
+cryptography
+# A static ffmpeg for hosts where it cannot be installed with apt (Koyeb / Heroku style buildpacks).
+# The system ffmpeg is used first when there is one. (Linux x86_64 only; Termux uses its own ffmpeg.)
+imageio-ffmpeg; platform_system == "Linux" and platform_machine == "x86_64"
