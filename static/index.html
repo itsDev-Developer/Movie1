@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Movies</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: var(--tg-theme-bg-color, #ffffff);
+    --fg: var(--tg-theme-text-color, #14161c);
+    --hint: var(--tg-theme-hint-color, #6f7782);
+    --card: var(--tg-theme-secondary-bg-color, #eef0f3);
+    --accent: var(--tg-theme-button-color, #2f7de1);
+    --accent-fg: var(--tg-theme-button-text-color, #ffffff);
+    --display: "Bricolage Grotesque", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+         padding: 0 12px calc(24px + env(safe-area-inset-bottom)); }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 0; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  header { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 12px 0 10px; }
+  .tabs { display: flex; gap: 4px; background: var(--card); padding: 3px; border-radius: 10px; }
+  .tabs button { flex: 1; padding: 8px 0; border-radius: 8px; background: none; color: var(--hint); font-weight: 600; }
+  .tabs button[aria-selected="true"] { background: var(--bg); color: var(--fg); }
+  .jump { display: flex; gap: 8px; margin-top: 10px; }
+  .jump input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--card); background: var(--card); }
+  .jump button, .btn { padding: 9px 16px; border-radius: 10px; background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 10px; margin-top: 6px; }
+  @media (min-width: 560px) { .grid { grid-template-columns: repeat(4, 1fr); } }
+  .card { background: none; text-align: left; padding: 0; }
+  .poster { aspect-ratio: 2 / 3; background: var(--card); border-radius: 6px; overflow: hidden; display: grid; place-items: center;
+            padding: 10px; text-align: center; color: var(--hint); font-family: var(--display); font-weight: 800; font-size: 18px; line-height: 1.1; }
+  .poster img { width: calc(100% + 20px); height: calc(100% + 20px); margin: -10px; object-fit: cover; display: block; }
+  .card h3 { font-size: 14px; font-weight: 600; margin-top: 6px; line-height: 1.25; }
+  .card p { color: var(--hint); font-size: 12.5px; }
+  .status { color: var(--hint); text-align: center; padding: 28px 0; }
+  #more { display: block; margin: 18px auto 0; background: var(--card); }
+
+  #detail { position: fixed; inset: 0; z-index: 10; background: var(--bg); overflow-y: auto; padding: 0 12px calc(24px + env(safe-area-inset-bottom)); }
+  #detail[hidden] { display: none; }
+  .stage { aspect-ratio: 16 / 9; background: #000; border-radius: 8px; margin-top: calc(12px + env(safe-area-inset-top)); position: relative; overflow: hidden; }
+  .stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .stage .play { position: absolute; inset: 0; width: 100%; background: center / cover no-repeat; display: grid; place-items: center; }
+  .stage .play span { background: var(--accent); color: var(--accent-fg); padding: 12px 22px; border-radius: 999px; font-weight: 700; }
+  #dTitle { font-family: var(--display); font-weight: 800; font-size: clamp(30px, 9vw, 46px); line-height: 1; letter-spacing: -0.02em; margin: 18px 0 6px; }
+  #dMeta { color: var(--hint); }
+  #dOverview { margin-top: 12px; max-width: 62ch; }
+  .controls { margin-top: 16px; display: grid; gap: 10px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row label { color: var(--hint); width: 70px; flex: none; }
+  .row input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--card); background: var(--card); }
+  .step { background: var(--card); width: 40px; height: 40px; border-radius: 10px; font-size: 18px; flex: none; }
+  .close { margin-top: calc(12px + env(safe-area-inset-top)); background: var(--card); padding: 7px 14px; border-radius: 999px; }
+  .hint { color: var(--hint); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="tabs" role="tablist">
+    <button role="tab" data-tab="movie" aria-selected="true">Movies</button>
+    <button role="tab" data-tab="tv" aria-selected="false">Shows</button>
+    <button role="tab" data-tab="episode" aria-selected="false">Episodes</button>
+  </div>
+  <form class="jump" id="jump">
+    <input id="jumpId" inputmode="text" autocomplete="off" placeholder="Open by IMDb or TMDB id" aria-label="IMDb or TMDB id">
+    <button>Open</button>
+  </form>
+</header>
+
+<main>
+  <div class="grid" id="grid"></div>
+  <p class="status" id="status" role="status"></p>
+  <button class="btn" id="more" hidden>Load more</button>
+</main>
+
+<section id="detail" hidden aria-label="Title details">
+  <button class="close" id="close">Back</button>
+  <div class="stage" id="stage"></div>
+  <h2 id="dTitle"></h2>
+  <p id="dMeta"></p>
+  <p id="dOverview"></p>
+  <div class="controls" id="controls">
+    <div class="row" data-tv>
+      <label for="season">Season</label>
+      <button class="step" data-step="s:-1" aria-label="Previous season">−</button>
+      <input id="season" type="number" min="1" value="1" inputmode="numeric">
+      <button class="step" data-step="s:1" aria-label="Next season">+</button>
+    </div>
+    <div class="row" data-tv>
+      <label for="episode">Episode</label>
+      <button class="step" data-step="e:-1" aria-label="Previous episode">−</button>
+      <input id="episode" type="number" min="1" value="1" inputmode="numeric">
+      <button class="step" data-step="e:1" aria-label="Next episode">+</button>
+    </div>
+    <div class="row">
+      <label for="sub">Subtitles</label>
+      <input id="sub" type="url" placeholder="https://…/subs.json">
+    </div>
+    <p class="hint">Subtitle file: a JSON list like [{"file": "sub_en.vtt", "label": "English"}].</p>
+  </div>
+</section>
+
+<script>
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const $ = (s) => document.querySelector(s);
+const grid = $("#grid"), statusEl = $("#status"), moreBtn = $("#more"), detail = $("#detail"), stage = $("#stage");
+let tab = "movie", page = 1, loading = false, cur = null;
+
+async function api(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+/* ---------- list ---------- */
+async function load(reset) {
+  if (loading) return;
+  loading = true;
+  if (reset) { page = 1; grid.replaceChildren(); }
+  statusEl.textContent = "Loading…";
+  moreBtn.hidden = true;
+  try {
+    const d = await api(`/api/list?kind=${tab}&page=${page}`);
+    d.items.forEach(addCard);
+    statusEl.textContent = grid.children.length ? "" : "Nothing here yet.";
+    moreBtn.hidden = d.items.length === 0;
+  } catch (e) {
+    statusEl.textContent = "Couldn't load this list. Check your connection and try again.";
+  }
+  loading = false;
+}
+
+function addCard(it) {
+  const b = document.createElement("button");
+  b.className = "card";
+  const p = document.createElement("div");
+  p.className = "poster";
+  if (it.poster) { const img = new Image(); img.src = it.poster; img.alt = ""; img.loading = "lazy"; p.append(img); }
+  else p.textContent = it.title;
+  const h = document.createElement("h3"); h.textContent = it.title;
+  const sub = document.createElement("p");
+  sub.textContent = [it.year, it.season ? `S${it.season}E${it.episode}` : "", it.quality].filter(Boolean).join(" · ");
+  b.append(p, h, sub);
+  b.onclick = () => openTitle(it);
+  grid.append(b);
+}
+
+document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", x === b));
+  tab = b.dataset.tab; load(true);
+});
+moreBtn.onclick = () => { page++; load(false); };
+$("#jump").onsubmit = (e) => {
+  e.preventDefault();
+  const id = $("#jumpId").value.trim();
+  if (/^(tt\d+|\d+)$/.test(id)) openTitle({ kind: tab === "movie" ? "movie" : "tv", id, title: id });
+  else statusEl.textContent = "Enter an id like tt17048514 or 927085.";
+};
+
+/* ---------- detail + player ---------- */
+async function openTitle(it, s, e) {
+  cur = { kind: it.kind, id: it.id, poster: it.poster || null };
+  $("#season").value = s || it.season || 1;
+  $("#episode").value = e || it.episode || 1;
+  document.querySelectorAll("[data-tv]").forEach((n) => n.hidden = cur.kind !== "tv");
+  $("#dTitle").textContent = it.title || it.id;
+  $("#dMeta").textContent = ""; $("#dOverview").textContent = "";
+  detail.hidden = false; detail.scrollTop = 0;
+  if (tg) { tg.BackButton.show(); }
+  renderPoster();
+  try {
+    const d = await api(`/api/details?kind=${cur.kind}&id=${encodeURIComponent(cur.id)}`);
+    if (d.title) $("#dTitle").textContent = d.title;
+    $("#dMeta").textContent = [d.year, d.runtime ? d.runtime + " min" : "", d.seasons ? d.seasons + " seasons" : "",
+      (d.genres || []).slice(0, 3).join(", "), d.rating ? "★ " + d.rating.toFixed(1) : ""].filter(Boolean).join(" · ");
+    $("#dOverview").textContent = d.overview || "";
+    if (d.poster && !cur.poster) { cur.poster = d.poster; renderPoster(); }
+  } catch (_) { /* details are optional */ }
+}
+
+function renderPoster() {
+  stage.replaceChildren();
+  const b = document.createElement("button");
+  b.className = "play";
+  if (cur.poster) b.style.backgroundImage = `url("${cur.poster}")`;
+  b.setAttribute("aria-label", "Play");
+  b.innerHTML = "<span>Play</span>";
+  b.onclick = play;
+  stage.append(b);
+}
+
+async function play() {
+  const q = new URLSearchParams({ kind: cur.kind, id: cur.id, s: $("#season").value, e: $("#episode").value, sub: $("#sub").value.trim() });
+  try {
+    const { url } = await api("/api/embed?" + q);
+    const f = document.createElement("iframe");
+    f.src = url; f.allow = "autoplay; fullscreen; picture-in-picture"; f.allowFullscreen = true;
+    stage.replaceChildren(f);
+  } catch (_) { statusEl.textContent = "Couldn't build the player link."; }
+}
+
+function closeDetail() {
+  stage.replaceChildren(); detail.hidden = true;
+  if (tg) tg.BackButton.hide();
+}
+$("#close").onclick = closeDetail;
+if (tg) tg.BackButton.onClick(closeDetail);
+
+document.querySelectorAll(".step").forEach((b) => b.onclick = () => {
+  const [which, d] = b.dataset.step.split(":");
+  const el = which === "s" ? $("#season") : $("#episode");
+  el.value = Math.max(1, (+el.value || 1) + +d);
+  if (which === "s") $("#episode").value = 1;
+  if (stage.querySelector("iframe")) play();
+});
+["season", "episode"].forEach((id) => $("#" + id).onchange = () => { if (stage.querySelector("iframe")) play(); });
+
+/* ---------- boot (deep link from the bot: ?kind=tv&id=tt0944947&s=1&e=5) ---------- */
+const qs = new URLSearchParams(location.search);
+if (/^(tt\d+|\d+)$/.test(qs.get("id") || "")) {
+  openTitle({ kind: qs.get("kind") === "tv" ? "tv" : "movie", id: qs.get("id") }, +qs.get("s") || 1, +qs.get("e") || 1);
+}
+load(true);
+</script>
+</body>
+</html>
